@@ -1118,7 +1118,7 @@ contains
        !print*,'nlat_fv3_regional_reduce,nlon_fv3_regional_reduce=',nlat_fv3_regional_reduce,nlon_fv3_regional_reduce
        !print*,'reduced rlat_min_dd,rlat_max_dd,rlon_min_dd,rlon_max_dd=',&
        !                 rlat_min_dd,rlat_max_dd,rlon_min_dd,rlon_max_dd
-     
+       endif 
        pt_ll=zero
     endif    !  fv3_regional
 
