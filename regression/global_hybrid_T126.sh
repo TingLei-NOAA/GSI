@@ -8,7 +8,7 @@ exp=$jobname
 # Set path/file for gsi executable
 #basedir=/scratch1/portfolios/NCEPDEV/da/save/Daryl.Kleist
 #gsipath=$basedir/gsi/
-#gsiexec=$gsipath/trunk/src/global_gsi
+#gsiexec=$gsipath/trunk/src/global_gsi.x
 
 # Set the JCAP resolution which you want.
 # All resolutions use LEVS=64
@@ -22,8 +22,7 @@ tmpdir=$tmpdir/$tmpregdir/${exp}
 savdir=$savdir/out${JCAP}/${exp}
 
 # Specify GSI fixed field and data directories.
-#fixgsi=$gsipath/trunk/fix
-#fixcrtm=$gsipath/EXP-port410/lib/CRTM_REL-2.2.3/fix
+fixcrtm=${fixcrtm:-$CRTM_FIX}
 
 #datobs=/scratch1/portfolios/NCEPDEV/da/noscrub/Daryl.Kleist/CASES/$adate/obs
 #datges=/scratch1/portfolios/NCEPDEV/da/noscrub/Daryl.Kleist/CASES/$adate/ges
@@ -222,6 +221,7 @@ scaninfo=$fixgsi/global_scaninfo.txt
 satinfo=$fixgsi/global_satinfo.txt
 cloudyinfo=$fixgsi/cloudy_radiance_info.txt
 convinfo=$fixgsi/global_convinfo_reg_test.txt
+vqcdat=$fixgsi/vqctp001.dat
 ### add 9 tables
 errtable_pw=$fixgsi/prepobs_errtable_pw.global
 errtable_ps=$fixgsi/prepobs_errtable_ps.global_nqcf
@@ -271,6 +271,7 @@ $ncp $cloudyinfo  ./cloudy_radiance_info.txt
 $ncp $pcpinfo  ./pcpinfo
 $ncp $ozinfo   ./ozinfo
 $ncp $convinfo ./convinfo
+$ncp $vqcdat ./vqctp001.dat
 $ncp $errtable ./errtable
 $ncp $anavinfo ./anavinfo
 $ncp $hybens_info ./hybens_info
@@ -288,6 +289,19 @@ $ncp $btable_uv           ./btable_uv
 
 $ncp $bufrtable ./prepobs_prep.bufrtable
 $ncp $bftab_sst ./bftab_sstphr
+
+#if using correlated error, link to the covariance files
+#if grep -q "Rcov" $anavinfo ;
+#then
+#  if ls ${fixgsi}/Rcov* 1> /dev/null 2>&1;
+#  then
+#    $ncp ${fixgsi}/Rcov* .
+#  else
+#    echo "Warning: Satellite error covariance files are missing."
+#    echo "Check for the required Rcov files in " $anavinfo
+#    exit 1
+#  fi
+#fi
 
 # Copy CRTM coefficient files based on entries in satinfo file
 for file in `awk '{if($1!~"!"){print $1}}' ./satinfo | sort | uniq` ;do

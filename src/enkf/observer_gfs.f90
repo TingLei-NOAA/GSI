@@ -51,17 +51,22 @@ subroutine setup_linhx(rlat, rlon, time, ix, delx, ixp, delxp, iy, dely,  &
 !   2016-11-29  shlyaeva
 !
 !   input argument list:
+!     rlat: latitude of ob
+!     rlon: longitude of ob
+!     time: time offset for ob
 !
 !   output argument list:
+!     ix,delx,ixp,delxp,iy,dely,iyp,delyp,it,delt,itp,deltp: horizontal
+!       and temporal linear interpolation indices and weights.
+!
 !
 ! attributes:
 !   language: f95
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_single
-  use params, only: nstatefields, nlons, nlats, nlevs, nhr_state, fhr_assim
-  use gridinfo, only: npts, latsgrd, lonsgrd
-  use statevec, only: nsdim
+  use params, only: nstatefields, nlons, nlats, nhr_state, fhr_assim
+  use gridinfo, only: latsgrd, lonsgrd
   use constants, only: zero,one,pi
   use mpisetup
   implicit none
@@ -122,7 +127,7 @@ subroutine setup_linhx(rlat, rlon, time, ix, delx, ixp, delxp, iy, dely,  &
 
 end subroutine setup_linhx
 
-subroutine calc_linhx(hx, dens, dhx_dx, hx_ens, &
+subroutine calc_linhx(hx, dens, dhx_dx, hxpert, hx_ens, &
                       ix, delx, ixp, delxp, iy, dely, iyp, delyp, &
                       it, delt, itp, deltp)
 !$$$  subprogram documentation block
@@ -136,19 +141,27 @@ subroutine calc_linhx(hx, dens, dhx_dx, hx_ens, &
 !   2016-11-29  shlyaeva
 !
 !   input argument list:
+!     hx: observation prior ensemble mean
+!     dens:  state space ensemble perturbations
+!     dhx_dx: Jacobian
+!     ix,delx,ixp,delxp,iy,dely,iyp,delyp,it,delt,itp,deltp: horizontal
+!       and temporal linear interpolation indices and weights.
 !
 !   output argument list:
+!     hx_ens: observation prior ensemble perturbation
+!     hxpert: ens pert profile that multiplies dhx_dx to yield hx_ens (in
+!     compressed format - temporally and horizontally interpolated)
 !
 ! attributes:
 !   language: f95
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_single
-  use params, only: nstatefields, nlons, nlats, nlevs, nhr_state, fhr_assim
-  use gridinfo, only: npts, latsgrd, lonsgrd
+  use params, only: nstatefields, nlons
+  use gridinfo, only: npts
   use statevec, only: nsdim
-  use constants, only: zero,one,pi
-  use sparsearr, only: sparr
+  use constants, only: zero,one
+  use sparsearr, only: sparr, raggedarr
   use mpisetup
   implicit none
 
@@ -158,32 +171,30 @@ subroutine calc_linhx(hx, dens, dhx_dx, hx_ens, &
   integer(i_kind), intent(in) :: ix, iy, it, ixp, iyp, itp
   real(r_kind), intent(in) :: delx, dely, delxp, delyp, delt, deltp
   type(sparr)                                      ,intent(in   ) :: dhx_dx       ! dH(x)/dx |x_mean profiles
+  type(raggedarr)                                  ,intent(inout) :: hxpert       ! interpolated background
   real(r_single)                                   ,intent(  out) :: hx_ens       ! H (x_ens)
-  integer(i_kind) i,j,k
+  integer(i_kind) i,j
 
   ! interpolate state horizontally and in time and do  dot product with dHx/dx profile
   ! saves from calculating interpolated x_ens for each state variable
   hx_ens = hx
   do i = 1, dhx_dx%nnz
      j = dhx_dx%ind(i)
-     k = kindx(j)
-     hx_ens = hx_ens + dhx_dx%val(i) *                                        &
-             (( dens( ix*nlons  + iy , j, it) *delxp*delyp          &
-              + dens( ixp*nlons + iy , j, it) *delx *delyp          &
-              + dens( ix*nlons  + iyp, j, it) *delxp*dely           &
-              + dens( ixp*nlons + iyp, j, it) *delx *dely )*deltp   &
-            + ( dens( ix*nlons  + iy , j, itp)*delxp*delyp          &
-              + dens( ixp*nlons + iy , j, itp)*delx *delyp          &
-              + dens( ix*nlons  + iyp, j, itp)*delxp*dely           &
-              + dens( ixp*nlons + iyp, j, itp)*delx *dely )*delt)
+     hxpert%val(i) = (( dens( ix*nlons  + iy , j, it) *delxp*delyp          &
+                      + dens( ixp*nlons + iy , j, it) *delx *delyp          &
+                      + dens( ix*nlons  + iyp, j, it) *delxp*dely           &
+                      + dens( ixp*nlons + iyp, j, it) *delx *dely )*deltp   &
+                    + ( dens( ix*nlons  + iy , j, itp)*delxp*delyp          &
+                      + dens( ixp*nlons + iy , j, itp)*delx *delyp          &
+                      + dens( ix*nlons  + iyp, j, itp)*delxp*dely           &
+                      + dens( ixp*nlons + iyp, j, itp)*delx *dely )*delt)
+     hx_ens = hx_ens + dhx_dx%val(i) * hxpert%val(i)
   enddo
 
   return
 end subroutine calc_linhx
 
-subroutine calc_linhx_modens(hx, dens, dhx_dx, hx_ens, &
-                      ix, delx, ixp, delxp, iy, dely, iyp, delyp, &
-                      it, delt, itp, deltp, vscale)
+subroutine calc_linhx_modens(hx, dhx_dx, hxpert, hx_ens, vscale)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    calc_linhx
@@ -192,50 +203,41 @@ subroutine calc_linhx_modens(hx, dens, dhx_dx, hx_ens, &
 ! abstract: 
 !
 ! program history log:
-!   2016-11-29  shlyaeva
+!   2016-11-29  shlyaeva, initial version
+!   2019-12-09  whitaker, optimizations
 !
 !   input argument list:
+!     hx: observation prior ensemble mean
+!     dhx_dx: Jacobian
+!     hxpert: 'unmodulated' ens pert profile that multiplies dhx_dx
+!     vscale: vertical scaling from vertical localization eigenvectors used
+!       to generate modulated ensemble.
 !
 !   output argument list:
+!     hx_ens: observation prior ensemble perturbation for each verticali
+!      localization eigenvector
 !
 ! attributes:
 !   language: f95
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_single
-  use params, only: nstatefields, nlons, nlats, nlevs, nhr_state, fhr_assim
-  use gridinfo, only: npts, latsgrd, lonsgrd
-  use statevec, only: nsdim
-  use constants, only: zero,one,pi
-  use sparsearr, only: sparr
+  use sparsearr, only: sparr, raggedarr
   use mpisetup
   implicit none
 
 ! Declare passed variables
   real(r_single)                                   ,intent(in   ) :: hx           ! H(x_mean)
-  real(r_single),dimension(npts,nsdim,nstatefields),intent(in   ) :: dens         ! x_ens - x_mean, state vector space
-  integer(i_kind), intent(in) :: ix, iy, it, ixp, iyp, itp
-  real(r_kind), intent(in) :: delx, dely, delxp, delyp, delt, deltp
   type(sparr)                                      ,intent(in   ) :: dhx_dx       ! dH(x)/dx |x_mean profiles
+  type(raggedarr)                                  ,intent(in   ) :: hxpert       ! interpolated background
   real(r_single)                                   ,intent(  out) :: hx_ens(neigv)! H (x_ens)
   real(r_double),dimension(neigv,nlevs+1)          ,intent(in   ) :: vscale       ! vertical scaling (for modulated ens)
-  integer(i_kind) i,j,k
+  integer(i_kind) i
 
-  ! interpolate state horizontally and in time and do  dot product with dHx/dx profile
-  ! saves from calculating interpolated x_ens for each state variable
+  ! calculate modulated ensemble in ob space
   hx_ens = hx
   do i = 1, dhx_dx%nnz
-     j = dhx_dx%ind(i)
-     k = kindx(j)
-     hx_ens(:) = hx_ens(:) + dhx_dx%val(i) *                                    &
-             (( dens( ix*nlons  + iy , j, it) *vscale(:,k)*delxp*delyp          &
-              + dens( ixp*nlons + iy , j, it) *vscale(:,k)*delx *delyp          &
-              + dens( ix*nlons  + iyp, j, it) *vscale(:,k)*delxp*dely           &
-              + dens( ixp*nlons + iyp, j, it) *vscale(:,k)*delx *dely )*deltp   &
-            + ( dens( ix*nlons  + iy , j, itp)*vscale(:,k)*delxp*delyp          &
-              + dens( ixp*nlons + iy , j, itp)*vscale(:,k)*delx *delyp          &
-              + dens( ix*nlons  + iyp, j, itp)*vscale(:,k)*delxp*dely           &
-              + dens( ixp*nlons + iyp, j, itp)*vscale(:,k)*delx *dely )*delt)
+     hx_ens(:) = hx_ens(:) + dhx_dx%val(i) * vscale(:,kindx(dhx_dx%ind(i))) * hxpert%val(i)
   enddo
 
   return
