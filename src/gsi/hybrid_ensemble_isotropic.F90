@@ -667,7 +667,7 @@ subroutine new_factorization_rf_x(f,iadvance,iback,nlevs,iaensgrplocin)
               enddo
            enddo
            do i=1,ny
-              f(i,j,k)=fmat0x(i,j,iadvance,1,iaensgrplocin)*f(i,j,k)
+              f(i,j,k)=fmt0xat0x(i,j,iadvance,1,iaensgrplocin)*f(i,j,k)
            enddo
         enddo
 
@@ -937,7 +937,7 @@ subroutine normal_new_factorization_rf_x
   allocate(xnorm_new(grd_loc%nlat,grd_loc%nlon,kl,naensloc))
   if(allocated(diag)) deallocate(diag)
   allocate(diag(grd_loc%nlat,grd_loc%nlon,kl))
-  xnorm_new=one
+  xnorm_new(:,ig0loc)=one
 
   do j=1,grd_loc%nlon
      f=zero
@@ -1047,7 +1047,7 @@ subroutine normal_new_factorization_rf_y
   if(allocated(diag)) deallocate(diag)
   allocate(diag(grd_loc%nlat,kl))
 
-  ynorm_new=one
+  ynorm_new(:,:,ig0loc)=one
 
   if(grd_loc%nlat <= grd_loc%nlon)then
     lend=1
@@ -4708,6 +4708,7 @@ subroutine hybens_localization_setup
          call init_rf_x(s_ens_h_gu_x,kl)
          call init_rf_y(s_ens_h_gu_y,kl)
       endif
+tothink
       call normal_new_factorization_rf_x
       call normal_new_factorization_rf_y
    else
