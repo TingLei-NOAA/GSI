@@ -146,7 +146,6 @@ module gridmod
   public :: nlat_regional,nlon_regional,update_regsfc,half_grid,gencode
   public :: diagnostic_reg,nmmb_reference_grid,filled_grid
   public :: grid_ratio_nmmb,isd_g,isc_g,dx_gfs,lpl_gfs,nsig5,nmmb_verttype
-  public :: grid_ratio_fv3_regional,fv3_regional
   public :: grid_ratio_fv3_regional,fv3_regional,grid_type_fv3_regional
   public :: l_reg_update_hydro_delz
   public :: nsig3,nsig4,grid_ratio_wrfmass
