@@ -96,6 +96,10 @@ module gsi_rfv3io_mod
     k_orog =11,                 & !terrain
     n2d=11                   )
   logical :: grid_reverse_flag
+  integer,parameter  :: nvarscondens=5
+  character(len=128), parameter :: fv3_condensations_vars(nvarscondens) = (/  &  ! condnesion vars in fv3 restart files from CV needed here
+            "liq_wat","ice_wat","rainwat","snowwat","graupel" /)          ! which are included in  delp in restart files 
+                                                                               !and need to be removed from read-out delp
 
 contains
   subroutine fv3regfilename_init(this,grid_spec_input,ak_bk_input,dynvars_input, &
@@ -706,7 +710,7 @@ subroutine read_fv3_netcdf_guess(fv3filenamegin)
     endif
 
     if( fv3sar_bg_opt == 0) then 
-       call gsi_fv3ncdf_read(dynvars,'DELP','delp',ges_prsi,mype_p)
+       call gsi_fv3ncdf_read_delp(dynvars,tracers,'DELP','delp',ges_prsi,mype_p)
        ges_prsi(:,:,nsig+1,it)=eta1_ll(nsig+1)
        do i=nsig,1,-1
           ges_prsi(:,:,i,it)=ges_prsi(:,:,i,it)*0.001_r_kind+ges_prsi(:,:,i+1,it)
@@ -1155,6 +1159,146 @@ subroutine gsi_fv3ncdf_read(filenamein,varname,varname2,work_sub,mype_io)
     deallocate (work)
     return
 end subroutine gsi_fv3ncdf_read
+subroutine gsi_fv3ncdf_read_delp(filenamein,filenamein2,varname,varname2,work_sub,mype_io)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    gsi_fv3ncdf_read_delp modified from gsi_fv3ncdf_read      
+!   prgmmr:   lei               org: np22                date: 2021-03-12
+!
+! abstract: read in a field (delp, and minus those condenstation to confirm to the normal delp defnition ) from a netcdf FV3 file in mype_io
+!          then scatter the field to each PE 
+! program history log:
+!
+!   input argument list:
+!     filename    - file name to read from       
+!     varname     - variable name to read in
+!     varname2    - variable name to read in
+!     mype_io     - pe to read in the field
+!
+!   output argument list:
+!     work_sub    - output sub domain field
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$  end documentation block
+
+
+    use kinds, only: r_kind,i_kind
+    use mpimod, only: ierror,mpi_comm_world,npe,mpi_rtype,mype
+    use gridmod, only: lat2,lon2,nsig,nlat,nlon,itotsub,ijn_s
+    use netcdf, only: nf90_open,nf90_close,nf90_get_var,nf90_noerr
+    use netcdf, only: nf90_nowrite,nf90_inquire,nf90_inquire_dimension
+    use netcdf, only: nf90_inquire_variable
+    use netcdf, only: nf90_inq_varid
+    use mod_fv3_lola, only: fv3_h_to_ll
+    use general_commvars_mod, only: ltosi_s,ltosj_s
+
+    implicit none
+    character(*)   ,intent(in   ) :: varname,varname2,filenamein,filenamein2
+    real(r_kind)   ,intent(out  ) :: work_sub(lat2,lon2,nsig) 
+    integer(i_kind)   ,intent(in   ) :: mype_io
+    character(len=128) :: name
+    real(r_kind),allocatable,dimension(:,:,:):: uu
+    integer(i_kind),allocatable,dimension(:):: dim_id,dim
+    real(r_kind),allocatable,dimension(:):: work
+    real(r_kind),allocatable,dimension(:,:):: a
+    character(len=:), allocatable :: varnameloc
+    real(r_kind),allocatable,dimension(:,:,:,:):: rtmp1 
+
+
+    integer(i_kind) n,ns,k,len,ndim
+    integer(i_kind) var_idloc,gfile_loc,gfile_loc2,iret
+    integer(i_kind) nz,nzp1,kk,j,mm1,i,ir,ii,jj,ivar
+    integer(i_kind) ndimensions,nvariables,nattributes,unlimiteddimid
+
+    mm1=mype+1
+    allocate (work(itotsub*nsig))
+
+    if(mype==mype_io ) then
+       iret=nf90_open(trim(filenamein),nf90_nowrite,gfile_loc)
+       if(iret/=nf90_noerr) then
+          write(6,*)' gsi_fv3ncdf_read: problem opening ',trim(filenamein),gfile_loc,', Status = ',iret
+          write(6,*)' gsi_fv3ncdf_read:problem opening5 with varnam ',trim(varname)
+          return
+       endif
+
+       iret=nf90_inquire(gfile_loc,ndimensions,nvariables,nattributes,unlimiteddimid)
+       allocate(dim(ndimensions))
+       allocate(a(nlat,nlon))
+
+       do k=1,ndimensions
+          iret=nf90_inquire_dimension(gfile_loc,k,name,len)
+          dim(k)=len
+       enddo
+
+
+       do k=ndimensions+1,nvariables
+          iret=nf90_inquire_variable(gfile_loc,k,name,len)
+          if(trim(name)==varname .or. trim(name)==varname2) then
+             iret=nf90_inquire_variable(gfile_loc,k,ndims=ndim)
+             if(allocated(dim_id    )) deallocate(dim_id    )
+             allocate(dim_id(ndim))
+             iret=nf90_inquire_variable(gfile_loc,k,dimids=dim_id)
+             if(allocated(uu        )) deallocate(uu        )
+             allocate(uu(dim(dim_id(1)),dim(dim_id(2)),dim(dim_id(3))))
+             iret=nf90_get_var(gfile_loc,k,uu)
+             exit
+          endif
+       enddo     !   k
+
+       allocate(rtmp1(dim(dim_id(1)),dim(dim_id(2)),dim(dim_id(3)),2))
+       rtmp1=0.0_r_kind
+        
+       iret=nf90_open(trim(filenamein2),nf90_nowrite,gfile_loc2)
+       if(iret/=nf90_noerr) then
+          write(6,*)' gsi_fv3ncdf_read: problem opening ',trim(filenamein2),gfile_loc2,', Status = ',iret
+          return
+       endif
+       
+       do ivar=1,nvarscondens 
+          varnameloc=fv3_condensations_vars(ivar)
+          iret=nf90_inq_varid(gfile_loc2,trim(adjustl(varnameloc)),var_idloc)
+          if(iret/=nf90_noerr) then
+             write(6,*)' wrong to get var_idloc ',var_idloc
+          endif
+
+          iret=nf90_get_var(gfile_loc2,var_idloc,rtmp1(:,:,:,1))
+          rtmp1(:,:,:,2)=rtmp1(:,:,:,2)+rtmp1(:,:,:,1)
+       enddo  !ivar for nvarscondens
+       uu=uu*(1-rtmp1(:,:,:,2) )   
+       nz=nsig
+       nzp1=nz+1
+       do i=1,nz
+          ir=nzp1-i
+          call fv3_h_to_ll(uu(:,:,i),a,dim(dim_id(1)),dim(dim_id(2)),nlon,nlat,grid_reverse_flag)
+          kk=0
+          do n=1,npe
+             ns=displss(n)+(ir-1)*ijn_s(n)
+             do j=1,ijn_s(n)
+                ns=ns+1
+                kk=kk+1
+                ii=ltosi_s(kk)
+                jj=ltosj_s(kk)
+                work(ns)=a(ii,jj)
+             end do
+          end do
+       enddo ! i
+
+       iret=nf90_close(gfile_loc)
+       iret=nf90_close(gfile_loc2)
+       deallocate (uu,a,dim,dim_id)
+       deallocate (rtmp1)
+
+    endif !mype
+
+    call mpi_scatterv(work,ijns,displss,mpi_rtype,&
+       work_sub,ijns(mm1),mpi_rtype,mype_io,mpi_comm_world,ierror)
+
+    deallocate (work)
+    return
+end subroutine gsi_fv3ncdf_read_delp
 
 subroutine gsi_fv3ncdf_read_v1(filenamein,varname,varname2,work_sub,mype_io)
   
@@ -1620,9 +1764,8 @@ subroutine wrfv3_netcdf(fv3filenamegin)
       call gsi_fv3ncdf_write(dynvars,'T',ges_tsen(1,1,1,it),mype_t,add_saved)
       call gsi_fv3ncdf_write(tracers,'sphum',ges_q   ,mype_q,add_saved)
       call gsi_fv3ncdf_writeuv(dynvars,ges_u,ges_v,mype_v,add_saved)
-      call gsi_fv3ncdf_writeps(dynvars,'delp',ges_ps,mype_p,add_saved)
+      call gsi_fv3ncdf_writeps(dynvars,tracers,'delp',ges_ps,mype_p,add_saved)
       if(l_reg_update_hydro_delz) then
-        write(6,*)'thinkdeb l_ref_delz is ',l_reg_update_hydro_delz
         allocate(ges_delzinc(lat2,lon2,nsig))
         do k=1,nsig
           ges_delzinc(:,:,k)=geom_hgti(:,:,k+1,it)-geom_hgti_bg(:,:,k+1,it)-geom_hgti(:,:,k,it)+geom_hgti_bg(:,:,k,it)
@@ -1803,7 +1946,7 @@ subroutine gsi_fv3ncdf_writeuv(dynvars,varu,varv,mype_io,add_saved)
 
 end subroutine gsi_fv3ncdf_writeuv
 
-subroutine gsi_fv3ncdf_writeps(filename,varname,var,mype_io,add_saved)
+subroutine gsi_fv3ncdf_writeps(filename,filename2,varname,var,mype_io,add_saved)
 !$$$  subprogram documentation block
 !                .      .    .                                        .
 ! subprogram:    gsi_nemsio_writeps
@@ -1834,21 +1977,25 @@ subroutine gsi_fv3ncdf_writeps(filename,varname,var,mype_io,add_saved)
     use mod_fv3_lola, only: fv3_ll_to_h,fv3_h_to_ll
     use general_commvars_mod, only: ltosi,ltosj
     use netcdf, only: nf90_open,nf90_close
+    use netcdf, only: nf90_open,nf90_close
     use netcdf, only: nf90_write,nf90_inq_varid
     use netcdf, only: nf90_put_var,nf90_get_var
+    use netcdf, only :nf90_noerr
     implicit none
 
     real(r_kind)   ,intent(in   ) :: var(lat2,lon2)
     integer(i_kind),intent(in   ) :: mype_io
     logical        ,intent(in   ) :: add_saved
-    character(*)   ,intent(in   ) :: varname,filename
+    character(*)   ,intent(in   ) :: varname,filename,filename2
 
-    integer(i_kind) :: VarId,gfile_loc
-    integer(i_kind) i,j,mm1,k,kr,kp
+    integer(i_kind) :: VarId,gfile_loc,gfile_loc2,var_idloc
+    integer(i_kind) i,j,mm1,k,kr,kp,ivar,iret
     real(r_kind),allocatable,dimension(:):: work
     real(r_kind),allocatable,dimension(:,:):: work_sub,work_a
     real(r_kind),allocatable,dimension(:,:,:):: work_b,work_bi
     real(r_kind),allocatable,dimension(:,:):: workb2,worka2
+    real(r_kind),allocatable,dimension(:,:,:,:):: rtmp1 
+    character(len=:), allocatable :: varnameloc
 
     mm1=mype+1
     allocate(    work(max(iglobal,itotsub)),work_sub(lat1,lon1) )
@@ -1866,25 +2013,40 @@ subroutine gsi_fv3ncdf_writeps(filename,varname,var,mype_io,add_saved)
        end do
        allocate( work_bi(nlon_regional,nlat_regional,nsig+1))
        allocate( work_b(nlon_regional,nlat_regional,nsig))
+       allocate( rtmp1(nlon_regional,nlat_regional,nsig,nvarscondens))
        call check( nf90_open(trim(filename),nf90_write,gfile_loc) )
        call check( nf90_inq_varid(gfile_loc,trim(varname),VarId) )
        allocate( workb2(nlon_regional,nlat_regional))
+!open tracer file 
+       call check( nf90_open(trim(filename2),nf90_write,gfile_loc2) )
 
        if(add_saved)then
           allocate( worka2(nlat,nlon))
 !!!!!!!! read in guess delp  !!!!!!!!!!!!!!
           call check( nf90_get_var(gfile_loc,VarId,work_b) )
+!remove the condensation from delp
+          do ivar=1,nvarscondens 
+             varnameloc=fv3_condensations_vars(ivar)
+             iret=nf90_inq_varid(gfile_loc2,trim(adjustl(varnameloc)),var_idloc)
+             if(iret/=nf90_noerr) then
+              write(6,*)' wrong to get var_idloc ',var_idloc
+             endif
+
+             iret=nf90_get_var(gfile_loc2,var_idloc,rtmp1(:,:,:,ivar))
+             rtmp1(:,:,:,ivar)=work_b*rtmp1(:,:,:,ivar)
+          enddo  !ivar for nvarscondens
+          work_b=work_b-sum(rtmp1(:,:,:,:),dim=4)
           work_bi(:,:,1)=eta1_ll(nsig+1)
           do i=2,nsig+1
              work_bi(:,:,i)=work_b(:,:,i-1)*0.001_r_kind+work_bi(:,:,i-1)
           enddo
           call fv3_h_to_ll(work_bi(:,:,nsig+1),worka2,nlon_regional,nlat_regional,nlon,nlat,grid_reverse_flag)
-!!!!!!! analysis_inc Psfc: work_a
+   !!!!!!! analysis_inc Psfc: work_a
           work_a(:,:)=work_a(:,:)-worka2(:,:)
           call fv3_ll_to_h(work_a,workb2,nlon,nlat,nlon_regional,nlat_regional,grid_reverse_flag)
           do k=1,nsig+1
              kr=nsig+2-k
-!!!!!!! ges_prsi+hydrostatic analysis_inc !!!!!!!!!!!!!!!!
+   !!!!!!! ges_prsi+hydrostatic analysis_inc !!!!!!!!!!!!!!!!
              work_bi(:,:,k)=work_bi(:,:,k)+eta2_ll(kr)*workb2(:,:)
           enddo
 
@@ -1901,11 +2063,23 @@ subroutine gsi_fv3ncdf_writeps(filename,varname,var,mype_io,add_saved)
           kp=k+1
           work_b(:,:,k)=(work_bi(:,:,kp)-work_bi(:,:,k))*1000._r_kind
        enddo
-  
+       work_b= work_b+sum(rtmp1(:,:,:,:),dim=4) 
+       do ivar=1,nvarscondens    !clthink loops with rtmp1 shoud be rewritten
+                                 !for openmp in the future  
+          rtmp1(:,:,:,ivar)=rtmp1(:,:,:,ivar)/work_b
+       enddo 
        call check( nf90_put_var(gfile_loc,VarId,work_b) )
-       call check( nf90_close(gfile_loc) )
+       do ivar=1,nvarscondens
+          varnameloc=fv3_condensations_vars(ivar)
+          iret=nf90_inq_varid(gfile_loc2,trim(adjustl(varnameloc)),var_idloc)
+          call check( nf90_put_var(gfile_loc2,var_idloc,rtmp1(:,:,:,ivar) ))
+       enddo 
+       call check( nf90_close(gfile_loc) ) 
+       call check( nf90_close(gfile_loc2) ) 
+! keep the absolute condensation values not changed, 
        if (allocated(worka2)) deallocate(worka2)
        if (allocated(workb2)) deallocate(workb2)
+       if (allocated(rtmp1)) deallocate(rtmp1)
 
        deallocate(work_b,work_a,work_bi)
 
@@ -2394,7 +2568,6 @@ subroutine gsi_fv3ncdf_write_fv3_dz(filename,varname,varinc,mype_io,add_saved)
     real(r_kind),allocatable,dimension(:,:,:):: work_sub,work_ainc
     real(r_kind),allocatable,dimension(:,:,:):: work_b
     real(r_kind),allocatable,dimension(:,:):: workb2
-    write(6,*)'thinkdeb write_dz'
 
     mm1=mype+1
 

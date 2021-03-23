@@ -36,6 +36,7 @@ contains
       use mpimod, only: mpi_comm_world,ierror,mype
       use hybrid_ensemble_parameters, only: n_ens,grd_ens
       use hybrid_ensemble_parameters, only: ntlevs_ens,ensemble_path
+      use hybrid_ensemble_parameters, only: write_ens_sprd
       use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
       use gsi_bundlemod, only: gsi_bundlecreate
       use gsi_bundlemod, only: gsi_grid
@@ -256,8 +257,8 @@ contains
          call mpi_barrier(mpi_comm_world,ierror)
   !
   ! CALCULATE ENSEMBLE SPREAD
-         call this%ens_spread_dualres_regional(mype,en_perts,nelen,en_bar(m))
-         call mpi_barrier(mpi_comm_world,ierror)
+      if (write_ens_sprd )   call this%ens_spread_dualres_regional(mype,en_perts,nelen,en_bar(m))
+         call mpi_barrier(mpi_comm_world,ierror) ! not sure if this mpi_barrier is needed
   !
   ! CONVERT ENSEMBLE MEMBERS TO ENSEMBLE PERTURBATIONS
          sig_norm=sqrt(one/max(one,n_ens-one))

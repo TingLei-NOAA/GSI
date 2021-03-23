@@ -1441,7 +1441,6 @@
      end if
   end if
   if (fv3sar_bg_opt.ne.0) l_reg_update_hydro_delz=.false.
-  write(6,*)'thinkdeb333 bg_opt and *o_dz is ',fv3sar_bg_opt, l_reg_update_hydro_delz
   if (anisotropic) then
       call init_fgrid2agrid(pf2aP1)
       call init_fgrid2agrid(pf2aP2)
