@@ -542,7 +542,6 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
 
 
     if (tv_ind > 0.or.tsen_ind>0 ) then
-         
       varstrname = 'T'
       if(tsen_ind>0) then
         do k=1,nlevs
@@ -592,7 +591,6 @@ subroutine writegriddata(nanal1,nanal2,vars3d,vars2d,n3d,n2d,levels,ndim,vargrid
        
          deallocate(tsenworkvar3d)
       endif  !if tsens else tv
-
     endif
     
     if (oz_ind > 0) then
