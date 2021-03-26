@@ -329,6 +329,7 @@ contains
       use gsi_rfv3io_mod,only:mype_t,mype_p ,mype_q,mype_oz
       use constants, only: half,zero
       use gsi_rfv3io_mod, only: gsi_fv3ncdf_read 
+      use gsi_rfv3io_mod, only: gsi_fv3ncdf_read_delp 
       use gsi_rfv3io_mod, only: gsi_fv3ncdf_read_v1
       use gsi_rfv3io_mod, only: gsi_fv3ncdf_readuv
       use gsi_rfv3io_mod, only: gsi_fv3ncdf_readuv_v1
@@ -394,7 +395,7 @@ contains
       call gsi_fv3ncdf_read_v1(dynvars,'t','T',g_tsen,mype_t)
     endif
     if (fv3sar_ensemble_opt == 0) then 
-      call gsi_fv3ncdf_read(dynvars,'DELP','delp',g_prsi,mype_p)
+      call gsi_fv3ncdf_read_delp(dynvars,tracers,'DELP','delp',g_prsi,g_q,mype_p)
       g_prsi(:,:,grd_ens%nsig+1)=eta1_ll(grd_ens%nsig+1) !thinkto be done , should use eta1_ll from ensemble grid
       do i=grd_ens%nsig,1,-1
          g_prsi(:,:,i)=g_prsi(:,:,i)*0.001_r_kind+g_prsi(:,:,i+1)
@@ -411,7 +412,6 @@ contains
     endif
      
     if(fv3sar_ensemble_opt == 0) then
-      call gsi_fv3ncdf_read(tracers,'SPHUM','sphum',g_q,mype_q)
       call gsi_fv3ncdf_read(tracers,'O3MR','o3mr',g_oz,mype_oz)
     else
       call gsi_fv3ncdf_read_v1(tracers,'sphum','SPHUM',g_q,mype_q)
