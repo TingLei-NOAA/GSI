@@ -569,7 +569,7 @@ if (nproc == 0) then
       print *, 'must select either arw, nmm or nmmb regional dynamical core'
       call stop2(19)
    endif
-   if (fv3_native .and. (trim(fv3fixpath) == '' .or. nx_res == 0 .or. ny_res == 0 )) then
+   if (fv3_native .and. (trim(fv3fixpath) == '' .and. (nx_res == 0 .or. ny_res == 0 ) )) then
       print *, 'must specify nx_res,ny_res and fv3fixpath when fv3_native is true'
       call stop2(19)
    endif

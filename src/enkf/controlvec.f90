@@ -75,6 +75,7 @@ integer(i_kind), public, allocatable, dimension(:) :: clevels
 contains
 
 subroutine init_controlvec()
+use params, only: ldo_enscalc_option 
 ! read table with control vector variables
 ! (code adapted from GSI state_vectors.f90 init_anasv routine
 implicit none
@@ -132,7 +133,7 @@ do ii=1,nvars
       clevels(nc3d) = ilev + clevels(nc3d-1)
    else 
       if (nproc .eq. 0) print *,'Error: only ', nlevs, ' and ', nlevs+1,' number of levels is supported in current version, got ',ilev
-      call stop2(503)
+      call stop2(5031)
    endif
 enddo
 
@@ -158,7 +159,7 @@ if (ncdim == 0) then
 endif
 
 do i = 1, nc2d
-  if (getindex(vars2d_supported, cvars2d(i))<0) then
+  if (getindex(vars2d_supported, cvars2d(i))<0 .and. ldo_enscalc_option == 0 ) then
     if (nproc .eq. 0) then
       print *,'Error: 2D variable ', cvars2d(i), ' is not supported in current version.'
       print *,'Supported variables: ', vars2d_supported
@@ -167,7 +168,7 @@ do i = 1, nc2d
   endif
 enddo
 do i = 1, nc3d
-  if (getindex(vars3d_supported, cvars3d(i))<0) then
+  if (getindex(vars3d_supported, cvars3d(i))<0 .and. ldo_enscalc_option == 0) then
     if (nproc .eq. 0) then 
        print *,'Error: 3D variable ', cvars3d(i), ' is not supported in current version.'
        print *,'Supported variables: ', vars3d_supported
@@ -292,7 +293,6 @@ real(r_double)  :: t1,t2
 integer(i_kind) :: nb, nvar, ne
 integer(i_kind) :: q_ind, ierr
 real(r_single), allocatable, dimension(:,:) :: grdin_mean, grdin_mean_tmp
-
 if (nproc <= ntasks_io-1) then
 
    allocate(grdin_mean_tmp(npts,ncdim))
