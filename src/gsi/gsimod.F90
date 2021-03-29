@@ -1440,7 +1440,7 @@
        if(mype == 0) write(6,*) ' ltlint = true, so vqc and njqc must be false'
      end if
   end if
-  if (fv3sar_bg_opt.ne.0) l_reg_update_hydro_delz=.false.
+  if (fv3sar_bg_opt /= 0) l_reg_update_hydro_delz=.false.
   if (anisotropic) then
       call init_fgrid2agrid(pf2aP1)
       call init_fgrid2agrid(pf2aP2)

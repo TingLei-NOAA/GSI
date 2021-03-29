@@ -1778,24 +1778,24 @@ subroutine wrfv3_netcdf(fv3filenamegin)
 
 !   write out
     if( fv3sar_bg_opt == 0) then
-      call gsi_fv3ncdf_write(dynvars,'T',ges_tsen(1,1,1,it),mype_t,add_saved)
+       call gsi_fv3ncdf_write(dynvars,'T',ges_tsen(1,1,1,it),mype_t,add_saved)
 !cltorg      call gsi_fv3ncdf_write(tracers,'sphum',ges_q   ,mype_q,add_saved)
-      call gsi_fv3ncdf_writeuv(dynvars,ges_u,ges_v,mype_v,add_saved)
-      call gsi_fv3ncdf_writeps(dynvars,tracers,'delp',ges_ps,ges_q,mype_p,add_saved)
-      if(l_reg_update_hydro_delz) then
-        allocate(ges_delzinc(lat2,lon2,nsig))
-        do k=1,nsig
-          ges_delzinc(:,:,k)=geom_hgti(:,:,k+1,it)-geom_hgti_bg(:,:,k+1,it)-geom_hgti(:,:,k,it)+geom_hgti_bg(:,:,k,it)
-        enddo
-        call gsi_fv3ncdf_write_fv3_dz(dynvars,"DZ",ges_delzinc,mype_delz,add_saved)
-        deallocate(ges_delzinc)
-      endif
+       call gsi_fv3ncdf_writeuv(dynvars,ges_u,ges_v,mype_v,add_saved)
+       call gsi_fv3ncdf_writeps(dynvars,tracers,'delp',ges_ps,ges_q,mype_p,add_saved)
+       if(l_reg_update_hydro_delz) then
+          allocate(ges_delzinc(lat2,lon2,nsig))
+          do k=1,nsig
+             ges_delzinc(:,:,k)=geom_hgti(:,:,k+1,it)-geom_hgti_bg(:,:,k+1,it)-geom_hgti(:,:,k,it)+geom_hgti_bg(:,:,k,it)
+          enddo
+          call gsi_fv3ncdf_write_fv3_dz(dynvars,"DZ",ges_delzinc,mype_delz,add_saved)
+          deallocate(ges_delzinc)
+       endif
 
     else
-      call gsi_fv3ncdf_write_v1(dynvars,'t',ges_tsen(1,1,1,it),mype_t,add_saved)
-      call gsi_fv3ncdf_write_v1(tracers,'sphum',ges_q   ,mype_q,add_saved)
-      call gsi_fv3ncdf_writeuv_v1(dynvars,ges_u,ges_v,mype_v,add_saved)
-      call gsi_fv3ncdf_writeps_v1(dynvars,'ps',ges_ps,mype_p,add_saved)
+       call gsi_fv3ncdf_write_v1(dynvars,'t',ges_tsen(1,1,1,it),mype_t,add_saved)
+       call gsi_fv3ncdf_write_v1(tracers,'sphum',ges_q   ,mype_q,add_saved)
+       call gsi_fv3ncdf_writeuv_v1(dynvars,ges_u,ges_v,mype_v,add_saved)
+       call gsi_fv3ncdf_writeps_v1(dynvars,'ps',ges_ps,mype_p,add_saved)
     
     endif
     
@@ -1874,8 +1874,8 @@ subroutine gsi_fv3ncdf_writeuv(dynvars,varu,varv,mype_io,add_saved)
        do m=1,npe
           do k=1,nsig
              do n=displs_g(m)+1,displs_g(m)+ijn(m) 
-             ns=ns+1
-             work_au(ltosi(n),ltosj(n),k)=work(ns)
+                ns=ns+1
+                work_au(ltosi(n),ltosj(n),k)=work(ns)
              end do
           enddo
        enddo
@@ -2672,7 +2672,7 @@ subroutine gsi_fv3ncdf_write_fv3_dz(filename,varname,varinc,mype_io,add_saved)
        end do
     enddo
     call mpi_gatherv(work_sub,ijnz(mm1),mpi_rtype, &
-          work,ijnz,displsz_g,mpi_rtype,mype_io,mpi_comm_world,ierror)
+         work,ijnz,displsz_g,mpi_rtype,mype_io,mpi_comm_world,ierror)
 
     if(mype==mype_io) then
        allocate( work_ainc(nlat,nlon,nsig))
@@ -2692,18 +2692,18 @@ subroutine gsi_fv3ncdf_write_fv3_dz(filename,varname,varinc,mype_io,add_saved)
        call check( nf90_inq_varid(gfile_loc,trim(varname),VarId) )
 
        if(.not. add_saved)then
-         write(6,*)'here the input is increments to be added to the read-in background, &
-                   &          hence, add_saved has to be true'
+          write(6,*)'here the input is increments to be added to the read-in background, &
+                     hence, add_saved has to be true'
        endif
-          allocate( workb2(nlon_regional,nlat_regional))
-          call check( nf90_get_var(gfile_loc,VarId,work_b) )
+       allocate( workb2(nlon_regional,nlat_regional))
+       call check( nf90_get_var(gfile_loc,VarId,work_b) )
 
-          do k=1,nsig
-             call fv3_ll_to_h(work_ainc(1,1,k),workb2(:,:),nlon,nlat,nlon_regional,nlat_regional,.true.)
+       do k=1,nsig
+          call fv3_ll_to_h(work_ainc(1,1,k),workb2(:,:),nlon,nlat,nlon_regional,nlat_regional,.true.)
 !!!!!!!! analysis_inc:  work_a !!!!!!!!!!!!!!!!
-             work_b(:,:,k)=workb2(:,:)+work_b(:,:,k)
-          enddo
-          deallocate(workb2)
+          work_b(:,:,k)=workb2(:,:)+work_b(:,:,k)
+       enddo
+       deallocate(workb2)
 
        print *,'write out ',trim(varname),' to ',trim(filename)
        call check( nf90_put_var(gfile_loc,VarId,work_b) )
@@ -2811,8 +2811,8 @@ subroutine gsi_fv3ncdf_write_v1(filename,varname,var,mype_io,add_saved)
        if(add_saved)then
           allocate( workb2(nlon_regional,nlat_regional))
           allocate( worka2(nlat,nlon))
-!clt  for being now only lev between (including )  2 and nsig+1 of work_b (:,:,lev) 
-!clt  are updated
+! for being now only lev between (including )  2 and nsig+1 of work_b (:,:,lev) 
+! are updated
           do k=1,nsig
              call fv3_h_to_ll(work_b(:,:,ilev0+k),worka2,nlon_regional,nlat_regional,nlon,nlat,grid_reverse_flag)
 !!!!!!!! analysis_inc:  work_a !!!!!!!!!!!!!!!!

@@ -107,7 +107,6 @@ subroutine pcgsoi()
 !   2016-03-25  todling - beta-mult param now within cov (following Dave Parrish corrections)
 !   2016-05-13  parrish -  remove beta12mult.  Replace with sqrt_beta_s_mult, sqrt_beta_e_mult, inside
 !                          bkerror and bkerror_a_en.
-!   2021-01-05  x.zhang/lei  - add code for updating delz analysis in regional da
 !
 ! input argument list:
 !
@@ -163,9 +162,6 @@ subroutine pcgsoi()
 
   use stpjomod, only: stpjo_setup
   
-  use gridmod,only: l_reg_update_hydro_delz
-  use guess_grids, only:geom_hgti,geom_hgti_bg
-  use guess_grids, only:  load_geop_hgt
 
   implicit none
 
@@ -810,9 +806,6 @@ subroutine pcgsoi()
     endif
   endif
 
-  if(l_reg_update_hydro_delz) then
-     call load_geop_hgt
-  endif
 
 ! Write output analysis files
   if(.not.l4dvar) call prt_guess('analysis')

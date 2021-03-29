@@ -1638,40 +1638,40 @@ contains
 
     endif
     if (l_reg_update_hydro_delz ) then
-!    Convert geopotential height at layer midpoints to geometric height using
-!    equations (17, 20, 23) in MJ Mahoney's note "A discussion of various
-!    measures of altitude" (2001).  Available on the web at
-!    http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
+!       Convert geopotential height at layer midpoints to geometric height using
+!       equations (17, 20, 23) in MJ Mahoney's note "A discussion of various
+!       measures of altitude" (2001).  Available on the web at
+!       http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
 !
-!    termg  = equation 17
-!    termr  = equation 21
-!    termrg = first term in the denominator of equation 23
-!    zges   = equation 23
-     mm1=mype+1
-     do jj=1,nfldsig
-       do j=1,lon2
-         jglob=max(1,min(j+jstart(mm1)-2,nlon))
-         do i=1,lat2
-           iglob=max(1,min(i+istart(mm1)-2,nlat))
-           slat=region_lat(iglob,jglob)
-           slon=region_lon(iglob,jglob)
+!       termg  = equation 17
+!       termr  = equation 21
+!       termrg = first term in the denominator of equation 23
+!       zges   = equation 23
+        mm1=mype+1
+        do jj=1,nfldsig
+          do j=1,lon2
+            jglob=max(1,min(j+jstart(mm1)-2,nlon))
+            do i=1,lat2
+              iglob=max(1,min(i+istart(mm1)-2,nlat))
+              slat=region_lat(iglob,jglob)
+              slon=region_lon(iglob,jglob)
 
-           sin2  = sin(slat)*sin(slat)
-           termg = grav_equator * &
-                ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
-           termr = semi_major_axis /(one + flattening + grav_ratio -  &
-                two*flattening*sin2)
-           termrg = (termg/grav)*termr
-           do k=1,nsig+1
-              geom_hgti(i,j,k,jj) = (termr*geop_hgti(i,j,k,jj))/(termrg-geop_hgti(i,j,k,jj))  ! eq (23)
-           end do
-        enddo
-      enddo
-     enddo !jj
+              sin2  = sin(slat)*sin(slat)
+              termg = grav_equator * &
+                   ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+              termr = semi_major_axis /(one + flattening + grav_ratio -  &
+                   two*flattening*sin2)
+              termrg = (termg/grav)*termr
+              do k=1,nsig+1
+                 geom_hgti(i,j,k,jj) = (termr*geop_hgti(i,j,k,jj))/(termrg-geop_hgti(i,j,k,jj))  ! eq (23)
+              end do
+            enddo
+          enddo
+        enddo !jj
 
-   endif
+    endif
 
-    return
+   return
   end subroutine load_geop_hgt
 
 !-------------------------------------------------------------------------
